@@ -1,5 +1,5 @@
 /******************************************************************************
- * $Id$
+ * $Id: ogrinfo.cpp 26381 2013-08-28 12:41:20Z rouault $
  *
  * Project:  OpenGIS Simple Features Reference Implementation
  * Purpose:  Simple client for viewing OGR driver data.
@@ -35,7 +35,7 @@
 #include "cpl_multiproc.h"
 #include "commonutils.h"
 
-CPL_CVSID("$Id$");
+CPL_CVSID("$Id: ogrinfo.cpp 26381 2013-08-28 12:41:20Z rouault $");
 
 int     bReadOnly = FALSE;
 int     bVerbose = TRUE;
@@ -43,10 +43,14 @@ int     bSummaryOnly = FALSE;
 int     nFetchFID = OGRNullFID;
 char**  papszOptions = NULL;
 
+enum InfoOutputFormat {
+    ofGDAL, ofXML, ofJSON
+};
+
 static void Usage(const char* pszErrorMsg = NULL);
 
 static void ReportOnLayer( OGRLayer *, const char *, const char* pszGeomField, 
-                           OGRGeometry * );
+                           OGRGeometry *, InfoOutputFormat);
 
 /************************************************************************/
 /*                                main()                                */
@@ -84,6 +88,7 @@ int main( int nArgc, char ** papszArgv )
 /*      Processing command line arguments.                              */
 /* -------------------------------------------------------------------- */
     nArgc = OGRGeneralCmdLineProcessor( nArgc, &papszArgv, 0 );
+    InfoOutputFormat outputFormat = ofGDAL;
     
     if( nArgc < 1 )
         exit( -nArgc );
@@ -170,6 +175,10 @@ int main( int nArgc, char ** papszArgv )
             papszOptions = CSLAddString(papszOptions, pszTemp);
             CPLFree(pszTemp);
         }
+        else if( EQUAL(papszArgv[iArg],"-xml") )
+        {
+            outputFormat = ofXML;
+        }
         else if( papszArgv[iArg][0] == '-' )
         {
             Usage(CPLSPrintf("Unknown option name '%s'", papszArgv[iArg]));
@@ -198,7 +207,9 @@ int main( int nArgc, char ** papszArgv )
         poDS = OGRSFDriverRegistrar::Open( pszDataSource, FALSE, &poDriver );
         if( poDS != NULL && bVerbose )
         {
-            printf( "Had to open data source read-only.\n" );
+            // This should print to STDERR as it will cause parsing errors
+            // with XML/JSON output formats.
+            fprintf(stderr, "Had to open data source read-only.\n" );
             bReadOnly = TRUE;
         }
     }
@@ -210,7 +221,7 @@ int main( int nArgc, char ** papszArgv )
     {
         OGRSFDriverRegistrar    *poR = OGRSFDriverRegistrar::GetRegistrar();
         
-        printf( "FAILURE:\n"
+        fprintf(stderr, "FAILURE:\n"
                 "Unable to open datasource `%s' with the following drivers.\n",
                 pszDataSource );
 
@@ -229,13 +240,13 @@ int main( int nArgc, char ** papszArgv )
 /*      Some information messages.                                      */
 /* -------------------------------------------------------------------- */
     if( bVerbose )
-        printf( "INFO: Open of `%s'\n"
+        fprintf(stderr, "INFO: Open of `%s'\n"
                 "      using driver `%s' successful.\n",
                 pszDataSource, poDriver->GetName() );
 
     if( bVerbose && !EQUAL(pszDataSource,poDS->GetName()) )
     {
-        printf( "INFO: Internal data source name `%s'\n"
+        fprintf(stderr, "INFO: Internal data source name `%s'\n"
                 "      different from user name `%s'.\n",
                 poDS->GetName(), pszDataSource );
     }
@@ -250,7 +261,7 @@ int main( int nArgc, char ** papszArgv )
         nRepeatCount = 0;  // skip layer reporting.
 
         if( CSLCount(papszLayers) > 0 )
-            printf( "layer names ignored in combination with -sql.\n" );
+            fprintf(stderr, "layer names ignored in combination with -sql.\n" );
         
         poResultSet = poDS->ExecuteSQL( pszSQLStatement,
                                         (pszGeomField == NULL) ? poSpatialFilter: NULL, 
@@ -262,15 +273,15 @@ int main( int nArgc, char ** papszArgv )
             {
                 if (poResultSet->SetAttributeFilter( pszWHERE ) != OGRERR_NONE )
                 {
-                    printf( "FAILURE: SetAttributeFilter(%s) failed.\n", pszWHERE );
+                    fprintf(stderr, "FAILURE: SetAttributeFilter(%s) failed.\n", pszWHERE );
                     exit(1);
                 }
             }
 
             if( pszGeomField != NULL )
-                ReportOnLayer( poResultSet, NULL, pszGeomField, poSpatialFilter );
+                ReportOnLayer( poResultSet, NULL, pszGeomField, poSpatialFilter, outputFormat );
             else
-                ReportOnLayer( poResultSet, NULL, NULL, NULL );
+                ReportOnLayer( poResultSet, NULL, NULL, NULL, outputFormat );
             poDS->ReleaseResultSet( poResultSet );
         }
     }
@@ -290,7 +301,7 @@ int main( int nArgc, char ** papszArgv )
 
                 if( poLayer == NULL )
                 {
-                    printf( "FAILURE: Couldn't fetch advertised layer %d!\n",
+                    fprintf(stderr, "FAILURE: Couldn't fetch advertised layer %d!\n",
                             iLayer );
                     exit( 1 );
                 }
@@ -330,7 +341,7 @@ int main( int nArgc, char ** papszArgv )
                     if( iRepeat != 0 )
                         poLayer->ResetReading();
 
-                    ReportOnLayer( poLayer, pszWHERE, pszGeomField, poSpatialFilter );
+                    ReportOnLayer( poLayer, pszWHERE, pszGeomField, poSpatialFilter, outputFormat );
                 }
             }
         }
@@ -346,7 +357,7 @@ int main( int nArgc, char ** papszArgv )
 
                 if( poLayer == NULL )
                 {
-                    printf( "FAILURE: Couldn't fetch requested layer %s!\n",
+                    fprintf(stderr, "FAILURE: Couldn't fetch requested layer %s!\n",
                             *papszIter );
                     exit( 1 );
                 }
@@ -354,7 +365,7 @@ int main( int nArgc, char ** papszArgv )
                 if( iRepeat != 0 )
                     poLayer->ResetReading();
 
-                ReportOnLayer( poLayer, pszWHERE, pszGeomField, poSpatialFilter );
+                ReportOnLayer( poLayer, pszWHERE, pszGeomField, poSpatialFilter, outputFormat );
             }
         }
     }
@@ -394,43 +405,17 @@ static void Usage(const char* pszErrorMsg)
     exit( 1 );
 }
 
-/************************************************************************/
-/*                           ReportOnLayer()                            */
-/************************************************************************/
 
-static void ReportOnLayer( OGRLayer * poLayer, const char *pszWHERE,
+/************************************************************************/
+/*                         ReportOnLayer_GDAL()                         */
+/* Outputs the layer and feature information with the traditional GDAL  */
+/*  output formatting.                                                  */
+/************************************************************************/
+static void ReportOnLayer_GDAL( OGRLayer * poLayer, 
                            const char* pszGeomField, 
                            OGRGeometry *poSpatialFilter )
-
 {
     OGRFeatureDefn      *poDefn = poLayer->GetLayerDefn();
-
-/* -------------------------------------------------------------------- */
-/*      Set filters if provided.                                        */
-/* -------------------------------------------------------------------- */
-    if( pszWHERE != NULL )
-    {
-        if (poLayer->SetAttributeFilter( pszWHERE ) != OGRERR_NONE )
-        {
-            printf( "FAILURE: SetAttributeFilter(%s) failed.\n", pszWHERE );
-            exit(1);
-        }
-    }
-
-    if( poSpatialFilter != NULL )
-    {
-        if( pszGeomField != NULL )
-        {
-            int iGeomField = poDefn->GetGeomFieldIndex(pszGeomField);
-            if( iGeomField >= 0 )
-                poLayer->SetSpatialFilter( iGeomField, poSpatialFilter );
-            else
-                printf("WARNING: Cannot find geometry field %s.\n",
-                       pszGeomField);
-        }
-        else
-            poLayer->SetSpatialFilter( poSpatialFilter );
-    }
 
 /* -------------------------------------------------------------------- */
 /*      Report various overall information.                             */
@@ -572,5 +557,235 @@ static void ReportOnLayer( OGRLayer * poLayer, const char *pszWHERE,
             poFeature->DumpReadable( NULL, papszOptions );
             OGRFeature::DestroyFeature( poFeature );
         }
+    }
+}
+
+
+/************************************************************************/
+/*                         ReportOnLayer_JSON()                         */
+/* Outputs the layer and feature information in JSON, including a dump  */
+/*  of the features in GeoJSON format.                                  */
+/************************************************************************/
+static void ReportOnLayer_JSON( OGRLayer * poLayer, 
+                           const char* pszGeomField, 
+                           OGRGeometry *poSpatialFilter )
+{
+    //OGRFeatureDefn      *poDefn = poLayer->GetLayerDefn();
+    OGRSFDriver         *poDriver = NULL;
+
+    poDriver = OGRSFDriverRegistrar::GetRegistrar()->GetDriverByName( "GeoJSON" );
+
+    if( poDriver == NULL ) {
+        // TODO: Get the standard message for this error.
+        fprintf( stderr, "FAILURE: GeoJSON driver not supported in this build.\n" ); 
+        exit(1);
+    }
+
+    // put the features into it using GeoJSON...
+
+}
+
+CPLXMLNode *DumpReadableXML( OGRFeatureDefn * poDefn, OGRFeature * poFeature )
+{
+    CPLXMLNode *featureNode = CPLCreateXMLNode( NULL, CXT_Element, "Feature" );
+
+    CPLSetXMLValue( featureNode, "#id", CPLSPrintf("%ld", poFeature->GetFID()) );
+
+    for( int iAttr = 0; iAttr < poDefn->GetFieldCount(); iAttr++ )
+    {
+        OGRFieldDefn    *poField = poDefn->GetFieldDefn( iAttr );
+        CPLXMLNode      *attrNode = CPLCreateXMLNode( featureNode, CXT_Element, "Attr" );
+
+        CPLSetXMLValue( attrNode, "#name", poField->GetNameRef() ); 
+
+        if( poFeature->IsFieldSet( iAttr ) )
+            CPLCreateXMLNode( attrNode, CXT_Literal, 
+                                poFeature->GetFieldAsString( iAttr ) );
+    }
+
+    if( poFeature->GetStyleString() != NULL )
+    {
+        CPLCreateXMLElementAndValue( featureNode, "Style", poFeature->GetStyleString() );
+    }
+
+    int nGeomFieldCount = poFeature->GetGeomFieldCount();
+    if( nGeomFieldCount > 0 )
+    {
+        for( int iField = 0; iField < nGeomFieldCount; iField++ )
+        {
+            OGRGeomFieldDefn    *poFDefn = poDefn->GetGeomFieldDefn(iField);
+            CPLXMLNode          *attrNode = CPLCreateXMLNode( featureNode, CXT_Element, "Geometry" );
+            OGRGeometry         *geoRef = poFeature->GetGeomFieldRef( iField );
+
+            CPLSetXMLValue( attrNode, "#name", poFDefn->GetNameRef() ); 
+            if( geoRef != NULL ) {
+                char* wkt = NULL;
+                if( geoRef->exportToWkt( &wkt ) == OGRERR_NONE) {
+                    CPLCreateXMLNode( attrNode, CXT_Literal, wkt );
+                    CPLFree( wkt );
+                }
+            }
+        }
+    }
+
+    return featureNode;
+}
+
+static void ReportOnLayer_XML( OGRLayer * poLayer, 
+                           const char* pszGeomField, 
+                           OGRGeometry *poSpatialFilter )
+{
+    OGRFeatureDefn      *poDefn = poLayer->GetLayerDefn();
+    CPLXMLNode          *xmlRoot = CPLCreateXMLNode( NULL, CXT_Element, "Layer" );
+    CPLXMLNode          *workNode;
+
+    CPLXMLNode          *metaNode = CPLCreateXMLNode( xmlRoot, CXT_Element, "Meta" );
+
+    CPLCreateXMLElementAndValue( metaNode, "Name", poLayer->GetName() );
+
+    if( bVerbose )
+    {
+        CPLCreateXMLElementAndValue( metaNode, "FeatureCount", 
+                                        CPLSPrintf("%d", poLayer->GetFeatureCount()) );
+
+        OGREnvelope oExt;
+        char    *pszWKT;
+
+        int nGeomFieldCount =
+            poLayer->GetLayerDefn()->GetGeomFieldCount();
+        for(int iGeom = 0;iGeom < nGeomFieldCount; iGeom ++ )
+        {
+            OGRGeomFieldDefn* poGFldDefn =
+                poLayer->GetLayerDefn()->GetGeomFieldDefn(iGeom);
+            OGRErr extErr = poLayer->GetExtent(iGeom, &oExt, TRUE);
+
+            workNode = CPLCreateXMLNode( metaNode, CXT_Element, "GeometryField" );
+            CPLSetXMLValue( workNode, "#name", poGFldDefn->GetNameRef() );
+            CPLSetXMLValue( workNode, "#type", OGRGeometryTypeToName( poGFldDefn->GetType() ) );
+
+            if(extErr != OGRERR_NONE)
+                extErr = poLayer->GetExtent(&oExt, TRUE);
+            
+            if(extErr == OGRERR_NONE) {
+                CPLXMLNode *extentNode = CPLCreateXMLNode( workNode, CXT_Element, "Extent" );
+                CPLSetXMLValue( extentNode, "#minx", CPLSPrintf( "%f", oExt.MinX) );
+                CPLSetXMLValue( extentNode, "#miny", CPLSPrintf( "%f", oExt.MinY) );
+                CPLSetXMLValue( extentNode, "#maxx", CPLSPrintf( "%f", oExt.MaxX) );
+                CPLSetXMLValue( extentNode, "#maxy", CPLSPrintf( "%f", oExt.MaxY) );
+            }
+            
+            OGRSpatialReference* poSRS = poGFldDefn->GetSpatialRef();
+            if( poSRS == NULL )
+                pszWKT = CPLStrdup( "(unknown)" );
+            else
+            {
+                poSRS->exportToPrettyWkt( &pszWKT );
+            }
+            
+            CPLXMLNode *srsNode = CPLCreateXMLNode( workNode, CXT_Element, "SRS" );
+            CPLCreateXMLNode( srsNode, CXT_Literal, pszWKT );
+            CPLFree( pszWKT );
+        }
+        
+        for( int iAttr = 0; iAttr < poDefn->GetFieldCount(); iAttr++ )
+        {
+            OGRFieldDefn    *poField = poDefn->GetFieldDefn( iAttr );
+            
+            workNode = CPLCreateXMLNode( metaNode, CXT_Element, "Field" );
+            CPLSetXMLValue( workNode, "#name", poField->GetNameRef() );
+            CPLSetXMLValue( workNode, "#type", poField->GetFieldTypeName( poField->GetType() ) );
+            CPLSetXMLValue( workNode, "#width", CPLSPrintf("%d", poField->GetWidth()) );
+            CPLSetXMLValue( workNode, "#precision", CPLSPrintf("%d", poField->GetPrecision()) );
+
+        }
+    }
+
+
+/* -------------------------------------------------------------------- */
+/*      Read, and dump features in fancy XML!                           */
+/* -------------------------------------------------------------------- */
+    OGRFeature  *poFeature = NULL;
+    CPLXMLNode  *featuresNode = CPLCreateXMLNode( xmlRoot, CXT_Element, "Features" );
+
+    if( nFetchFID == OGRNullFID && !bSummaryOnly )
+    {
+        while( (poFeature = poLayer->GetNextFeature()) != NULL )
+        {
+            //poFeature->DumpReadable( NULL, papszOptions );
+            CPLAddXMLChild( featuresNode, DumpReadableXML( poDefn, poFeature ) );
+            OGRFeature::DestroyFeature( poFeature );
+        }
+    }
+    else if( nFetchFID != OGRNullFID )
+    {
+        poFeature = poLayer->GetFeature( nFetchFID );
+        if( poFeature == NULL )
+        {
+            fprintf( stderr, "Unable to locate feature id %d on this layer.\n", 
+                    nFetchFID );
+        }
+        else
+        {
+            //poFeature->DumpReadable( NULL, papszOptions );
+            CPLAddXMLChild( featuresNode, DumpReadableXML( poDefn, poFeature ) );
+            OGRFeature::DestroyFeature( poFeature );
+        }
+    }
+
+
+    printf("%s\n", CPLSerializeXMLTree( xmlRoot ) );
+}
+
+
+/************************************************************************/
+/*                           ReportOnLayer()                            */
+/************************************************************************/
+
+static void ReportOnLayer( OGRLayer * poLayer, const char *pszWHERE,
+                           const char* pszGeomField, 
+                           OGRGeometry *poSpatialFilter,
+                           InfoOutputFormat outputFormat )
+
+{
+    OGRFeatureDefn      *poDefn = poLayer->GetLayerDefn();
+
+/* -------------------------------------------------------------------- */
+/*      Set filters if provided.                                        */
+/* -------------------------------------------------------------------- */
+    if( pszWHERE != NULL )
+    {
+        if (poLayer->SetAttributeFilter( pszWHERE ) != OGRERR_NONE )
+        {
+            fprintf(stderr, "FAILURE: SetAttributeFilter(%s) failed.\n", pszWHERE );
+            exit(1);
+        }
+    }
+
+    if( poSpatialFilter != NULL )
+    {
+        if( pszGeomField != NULL )
+        {
+            int iGeomField = poDefn->GetGeomFieldIndex(pszGeomField);
+            if( iGeomField >= 0 )
+                poLayer->SetSpatialFilter( iGeomField, poSpatialFilter );
+            else
+                fprintf(stderr, "WARNING: Cannot find geometry field %s.\n",
+                       pszGeomField);
+        }
+        else
+            poLayer->SetSpatialFilter( poSpatialFilter );
+    }
+
+    if( outputFormat == ofGDAL ) 
+    {
+        ReportOnLayer_GDAL( poLayer, pszGeomField, poSpatialFilter );
+    } 
+    else if( outputFormat == ofJSON ) 
+    {
+        ReportOnLayer_JSON( poLayer, pszGeomField, poSpatialFilter );
+    }
+    else if( outputFormat == ofXML )
+    {
+        ReportOnLayer_XML( poLayer, pszGeomField, poSpatialFilter );
     }
 }
