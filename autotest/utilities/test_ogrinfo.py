@@ -47,11 +47,13 @@ def test_ogrinfo_1():
         return 'skip'
 
     (ret, err) = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp')
-    if not (err is None or err == '') :
+    # Look to see if we have a FAILURE or ERROR message from ogrinfo
+    if(err is not None and ('FAILURE' in err or 'ERROR' in err)):
         gdaltest.post_reason('got error/warning')
         print(err)
         return 'fail'
-    if ret.find('ESRI Shapefile') == -1:
+    # test for the scucess message.
+    if err.find('ESRI Shapefile') == -1:
         return 'fail'
 
     return 'success'
@@ -63,8 +65,8 @@ def test_ogrinfo_2():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' -ro ../ogr/data/poly.shp')
-    if ret.find('ESRI Shapefile') == -1:
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' -ro ../ogr/data/poly.shp')
+    if err.find('ESRI Shapefile') == -1:
         return 'fail'
 
     return 'success'
@@ -76,7 +78,7 @@ def test_ogrinfo_3():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' -al ../ogr/data/poly.shp')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' -al ../ogr/data/poly.shp')
     if ret.find('Layer name: poly') == -1:
         gdaltest.post_reason('fail')
         return 'fail'
@@ -105,7 +107,7 @@ def test_ogrinfo_4():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly')
     if ret.find('Feature Count: 10') == -1:
         return 'fail'
 
@@ -118,7 +120,7 @@ def test_ogrinfo_5():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp -sql "select * from poly"')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp -sql "select * from poly"')
     if ret.find('Feature Count: 10') == -1:
         return 'fail'
 
@@ -131,7 +133,7 @@ def test_ogrinfo_6():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -geom=no')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -geom=no')
     if ret.find('Feature Count: 10') == -1:
         return 'fail'
     if ret.find('POLYGON') != -1:
@@ -146,7 +148,7 @@ def test_ogrinfo_7():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -geom=summary')
+    ret,out = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -geom=summary')
     if ret.find('Feature Count: 10') == -1:
         return 'fail'
     if ret.find('POLYGON (') != -1:
@@ -163,7 +165,7 @@ def test_ogrinfo_8():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -spat 479609 4764629 479764 4764817')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -spat 479609 4764629 479764 4764817')
     if ogrtest.have_geos():
         if ret.find('Feature Count: 4') == -1:
             return 'fail'
@@ -180,7 +182,7 @@ def test_ogrinfo_9():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -where "EAS_ID=171"')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -where "EAS_ID=171"')
     if ret.find('Feature Count: 1') == -1:
         return 'fail'
 
@@ -193,7 +195,7 @@ def test_ogrinfo_10():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -fid 9')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -fid 9')
     if ret.find('OGRFeature(poly):9') == -1:
         return 'fail'
 
@@ -206,7 +208,7 @@ def test_ogrinfo_11():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -fields=no')
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' ../ogr/data/poly.shp poly -fields=no')
     if ret.find('AREA (Real') != -1:
         return 'fail'
     if ret.find('POLYGON (') == -1:
@@ -224,6 +226,7 @@ def test_ogrinfo_12():
     ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' --version', check_memleak = False )
     if ret.find(gdal.VersionInfo('--version')) != 0:
         print(ret)
+	print(gdal.VersionInfo('--version'))
         return 'fail'
 
     return 'success'
@@ -264,7 +267,10 @@ def test_ogrinfo_15():
         return 'skip'
 
     (ret, err) = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' --debug on --mempreload ../ogr/data /vsimem/poly.shp', check_memleak = False )
-    if ret.find("ESRI Shapefile") < 0:
+    #import sys
+    #print >> sys.stderr, '*** RET', ret, err
+    # diagnostic info is now on the stderr
+    if err.find("ESRI Shapefile") < 0:
         print(ret)
         return 'fail'
 
@@ -316,9 +322,10 @@ def test_ogrinfo_18():
     f.write('# comment\n')
     f.write('../ogr/data/poly.shp\n')
     f.close()
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' --optfile tmp/optfile.txt', check_memleak = False )
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' --optfile tmp/optfile.txt', check_memleak = False )
     os.unlink('tmp/optfile.txt')
-    if ret.find("ESRI Shapefile") < 0:
+    if err.find("ESRI Shapefile") < 0:
+    	print(err)
         print(ret)
         return 'fail'
 
@@ -359,9 +366,10 @@ def test_ogrinfo_21():
     if test_cli_utilities.get_ogrinfo_path() is None:
         return 'skip'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' --locale C ../ogr/data/poly.shp', check_memleak = False )
-    if ret.find("ESRI Shapefile") < 0:
-        print(ret)
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' --locale C ../ogr/data/poly.shp', check_memleak = False )
+    if err.find("ESRI Shapefile") < 0:
+        print(err)
+	print(ret)
         return 'fail'
 
     return 'success'
@@ -378,12 +386,13 @@ def test_ogrinfo_22():
     f.write('"POINT(1 2)","POINT(3 4)"\n')
     f.close()
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' tmp/test_ogrinfo_22.csv', check_memleak = False )
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' tmp/test_ogrinfo_22.csv', check_memleak = False )
     if ret.find('1: test_ogrinfo_22 (Unknown (any), Unknown (any))') < 0:
         print(ret)
         return 'fail'
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' -al tmp/test_ogrinfo_22.csv', check_memleak = False )
+    ret,err = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' -al tmp/test_ogrinfo_22.csv', check_memleak = False )
+    ret = err+ret
     expected_ret = """INFO: Open of `tmp/test_ogrinfo_22.csv'
       using driver `CSV' successful.
 
@@ -461,7 +470,10 @@ def test_ogrinfo_23():
     f.write('"POINT(3 4)","POINT(1 2)"\n')
     f.close()
 
-    ret = gdaltest.runexternal(test_cli_utilities.get_ogrinfo_path() + ' -al tmp/test_ogrinfo_23.csv -spat 1 2 1 2 -geomfield geom__WKTgeom2_EPSG_32631', check_memleak = False )
+    # OGR Info now outputs diagnostic information to stderr,
+    #  to make this test pass the streams are appended.
+    (ret, err) = gdaltest.runexternal_out_and_err(test_cli_utilities.get_ogrinfo_path() + ' -al tmp/test_ogrinfo_23.csv -spat 1 2 1 2 -geomfield geom__WKTgeom2_EPSG_32631', check_memleak = False )
+    ret = err + ret
     expected_ret = """INFO: Open of `tmp/test_ogrinfo_23.csv'
       using driver `CSV' successful.
 
